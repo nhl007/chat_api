@@ -1,5 +1,9 @@
 import { DefaultEventsMap, Server, Socket } from "socket.io";
-import { getMessages, getUserGroup, insertMessage } from "../db/messages.query";
+import {
+  getMessages,
+  getChatHistory,
+  insertMessage,
+} from "../db/messages.query";
 
 type TChatStartParams = {
   admin: boolean;
@@ -24,33 +28,28 @@ export const chatHandler = (
   io: Server<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, any>,
   socket: Socket
 ) => {
-  // ! get all message group
-  socket.on("getChatHistory", async () => {
-    const data = await getUserGroup();
-    socket.emit("getChatHistory", JSON.stringify(data));
-  });
-  //! get all messages
-  socket.on("getAllMessage", async (data: { room: string }) => {
-    const msgs = await getMessages(data.room);
-    socket.emit("getAllMessage", JSON.stringify(msgs));
-  });
-
-  socket.on("chatStart", (start: TChatStartParams) => {
+  socket.on("chatStart", async (start: TChatStartParams) => {
     //!if admin
     if (start.admin) {
-      const rooms = io.sockets.adapter.rooms.keys();
-      return socket.emit("room_list", JSON.stringify(rooms));
+      // ! get all message group
+      const data = await getChatHistory();
+      return socket.emit("room_list", JSON.stringify(data));
     }
 
     //! else user
     socket.join(start.name);
-    socket.emit("chatStart", `Room Created!`);
+
+    const msgs = await getMessages(start.name);
+    socket.emit("userAllMsgs", JSON.stringify(msgs));
   });
 
   //! Admin
-  socket.on("joinRoom", (join: TAdminJoinRoomParams) => {
+  socket.on("joinRoom", async (join: TAdminJoinRoomParams) => {
     socket.join(join.room);
-    socket.emit("joined_room", `${join.room}-- Room Joined!`);
+
+    const msgs = await getMessages(join.room);
+
+    socket.emit("joined_room", JSON.stringify(msgs));
   });
 
   //! All
@@ -62,7 +61,12 @@ export const chatHandler = (
       room: message.room,
     });
 
-    socket.to(message.room).emit("message", message.message);
+    socket.to(message.room).emit("message", {
+      admin: message.admin,
+      sender: message.sender,
+      message: message.message,
+      room: message.room,
+    });
   });
 
   // Disconnect user

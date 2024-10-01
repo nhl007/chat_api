@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { db } from "../config/db";
 import { messages } from "./messages.schema";
 
@@ -17,25 +17,46 @@ export const getMessages = async (room: string) => {
       .select()
       .from(messages)
       .where(eq(messages.room, room))
-      .orderBy(desc(messages.date));
+      .orderBy(asc(messages.date));
     return msgs;
   } catch (error) {
-    return null;
+    return [];
   }
 };
 
-export const getUserGroup = async () => {
+export const getChatHistory = async () => {
   try {
     const msgs = await db
       .select({
-        sender: messages.sender,
+        room: messages.room,
       })
       .from(messages)
       .where(eq(messages.admin, false))
-      .groupBy(messages.sender);
+      .groupBy(messages.room)
+      .then(async (users) => {
+        const history = [];
+        for await (const d of users) {
+          const data = await db
+            .select({
+              message: messages.message,
+              date: messages.date,
+            })
+            .from(messages)
+            .where(eq(messages.room, d.room))
+            .orderBy(desc(messages.date))
+            .limit(1);
+
+          history.push({
+            room: d.room,
+            lastMessage: data.length ? data[0].message : "",
+            lastMessageDate: data.length ? data[0].date : "",
+          });
+        }
+        return history;
+      });
     return msgs;
   } catch (error) {
     console.log(error);
-    return null;
+    return [];
   }
 };
