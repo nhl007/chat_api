@@ -5,12 +5,17 @@ import { handleErrors } from "./middleware/error";
 
 const app: Application = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "*",
+    credentials: true,
+  })
+);
 
 app.get("/", (req: Request, res: Response) => {
   res.json({
     status: "running",
-    message: "Server is running !",
+    description: "Cleva Chat Api",
   });
 });
 
